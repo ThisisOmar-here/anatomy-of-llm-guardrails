@@ -1,466 +1,505 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Anatomy of LLM Guardrails, Omar Albarghouthi</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#070A12; --bg2:#0A0E1A;
-    --panel:#0F1422; --panel2:#0C111D;
-    --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13);
-    --txt:#EEF2FA; --muted:#9AA6C0; --soft:#646F8C;
-    --vio:#7C5CFF; --vio2:#A78BFF;
-    --cyan:#22D3EE; --lime:#A3E635; --amber:#FBBF24; --rose:#FB7185; --green:#34D399;
-    --mono:'JetBrains Mono',monospace; --disp:'Space Grotesk',sans-serif;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
-  ::selection{background:rgba(124,92,255,.35);color:#fff}
-  body{
-    background:var(--bg); color:var(--txt);
-    font-family:'Plus Jakarta Sans',sans-serif; line-height:1.62;
-    -webkit-font-smoothing:antialiased; overflow-x:hidden;
-  }
-  /* layered animated backdrop */
-  .bgfx{position:fixed;inset:0;z-index:-2;pointer-events:none;
-    background:
-      radial-gradient(1000px 600px at 82% -8%,rgba(124,92,255,.20),transparent 60%),
-      radial-gradient(820px 560px at -5% 8%,rgba(34,211,238,.13),transparent 60%),
-      radial-gradient(700px 700px at 50% 120%,rgba(163,230,53,.08),transparent 60%),
-      var(--bg);}
-  .grid-overlay{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;
-    background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
-    background-size:46px 46px;
-    mask-image:radial-gradient(circle at 50% 30%,#000 0%,transparent 78%);}
-  .ar{font-family:'IBM Plex Sans Arabic','Plus Jakarta Sans',sans-serif;}
-  .wrap{max-width:960px;margin:0 auto;padding:0 22px}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anatomy of LLM Guardrails | Omar Albarghouthi</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #182033;
+      --muted: #5d687c;
+      --line: #d9deea;
+      --paper: #f7f4ee;
+      --panel: #ffffff;
+      --blue: #174ea6;
+      --green: #146c43;
+      --amber: #9a5b00;
+      --red: #9f2f2f;
+      --shadow: 0 22px 70px rgba(24, 32, 51, .10);
+    }
 
-  /* NAV */
-  nav{position:sticky;top:0;z-index:40;backdrop-filter:blur(14px);
-    background:rgba(7,10,18,.72);border-bottom:1px solid var(--line)}
-  .nav-in{max-width:960px;margin:0 auto;padding:13px 22px;display:flex;align-items:center;justify-content:space-between;gap:14px}
-  .brand{display:flex;align-items:center;gap:10px;font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:-.01em}
-  .logo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;
-    background:linear-gradient(135deg,var(--vio),var(--cyan));box-shadow:0 6px 18px rgba(124,92,255,.4)}
-  .tabs{display:flex;gap:6px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;padding:4px}
-  .tab{cursor:pointer;border:none;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;
-    font-size:13.5px;padding:7px 16px;border-radius:9px;transition:.18s;display:flex;align-items:center;gap:7px}
-  .tab:hover{color:var(--txt)}
-  .tab.active{background:linear-gradient(135deg,var(--vio),#6d49ff);color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.45)}
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(23, 78, 166, .08) 1px, transparent 1px),
+        linear-gradient(rgba(23, 78, 166, .06) 1px, transparent 1px),
+        var(--paper);
+      background-size: 56px 56px;
+      font-family: Georgia, "Times New Roman", serif;
+      line-height: 1.65;
+    }
 
-  /* HERO */
-  header{padding:72px 0 30px;position:relative}
-  .kick{display:inline-flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;
-    text-transform:uppercase;color:var(--vio2);border:1px solid rgba(124,92,255,.4);background:rgba(124,92,255,.08);
-    padding:7px 14px;border-radius:999px;margin-bottom:24px}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 10px var(--lime);animation:pulse 2s infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-  h1{font-family:var(--disp);font-size:clamp(36px,6.4vw,68px);font-weight:700;line-height:1.02;letter-spacing:-.03em;margin-bottom:20px}
-  h1 .g{background:linear-gradient(100deg,#fff 10%,var(--vio2) 45%,var(--cyan) 90%);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .ar h1{font-family:'IBM Plex Sans Arabic',sans-serif;line-height:1.18}
-  .sub{color:var(--muted);font-size:clamp(16px,2.2vw,20px);max-width:660px;margin-bottom:30px}
-  .herometa{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-  .chip{font-family:var(--mono);font-size:11.5px;color:var(--muted);border:1px solid var(--line2);
-    background:rgba(255,255,255,.03);padding:7px 13px;border-radius:9px;display:flex;align-items:center;gap:7px}
-  .chip b{color:var(--txt);font-weight:700}
-  .chip.v{border-color:rgba(124,92,255,.4);color:var(--vio2)}
-  .chip.c{border-color:rgba(34,211,238,.4);color:var(--cyan)}
-  .chip.l{border-color:rgba(163,230,53,.4);color:var(--lime)}
+    body.ar {
+      direction: rtl;
+      font-family: "Tahoma", "Arial", sans-serif;
+    }
 
-  /* STAT STRIP */
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:44px 0 8px;
-    background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden}
-  .stat{background:var(--panel2);padding:20px 18px}
-  .stat .n{font-family:var(--disp);font-weight:700;font-size:28px;letter-spacing:-.02em;
-    background:linear-gradient(120deg,#fff,var(--vio2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .stat .l{font-size:12.5px;color:var(--soft);margin-top:3px;line-height:1.35}
-  @media(max-width:680px){.stats{grid-template-columns:repeat(2,1fr)}}
+    a { color: var(--blue); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 
-  main{padding:34px 0 70px}
-  .panel.ar{direction:rtl;text-align:right}
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid rgba(24, 32, 51, .12);
+      background: rgba(247, 244, 238, .88);
+      backdrop-filter: blur(16px);
+    }
 
-  /* SECTION CARD */
-  section.card{position:relative;background:linear-gradient(180deg,var(--panel),var(--panel2));
-    border:1px solid var(--line);border-radius:20px;padding:34px;margin-bottom:20px;transition:.25s;overflow:hidden}
-  section.card::before{content:"";position:absolute;inset:0;border-radius:20px;padding:1px;
-    background:linear-gradient(160deg,rgba(124,92,255,.5),transparent 40%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-    -webkit-mask-composite:xor;mask-composite:exclude;opacity:0;transition:.25s}
-  section.card:hover::before{opacity:1}
-  section.card:hover{transform:translateY(-2px);border-color:var(--line2)}
-  .eyebrow{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-  .secnum{font-family:var(--disp);font-weight:700;font-size:13px;color:#fff;min-width:34px;height:34px;border-radius:10px;
-    display:grid;place-items:center;background:linear-gradient(135deg,var(--vio),var(--cyan));box-shadow:0 6px 16px rgba(124,92,255,.35)}
-  .eylabel{font-family:var(--mono);font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--soft)}
-  .ar .eylabel{letter-spacing:0}
-  h2{font-family:var(--disp);font-size:clamp(21px,3vw,27px);font-weight:700;letter-spacing:-.018em;margin-bottom:13px}
-  .ar h2{font-family:'IBM Plex Sans Arabic',sans-serif;letter-spacing:0;line-height:1.4}
-  p{color:#C5CEE3;margin-bottom:13px}
-  p strong,li strong{color:#fff;font-weight:700}
-  .lead{font-size:17.5px;color:var(--muted)}
-  em{color:var(--vio2);font-style:normal;font-weight:600}
+    .topbar-inner,
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
 
-  table{width:100%;border-collapse:collapse;margin:10px 0 4px;font-size:14.5px}
-  th,td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}
-  .ar th,.ar td{text-align:right}
-  th{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--cyan);font-weight:500}
-  td{color:#C5CEE3}
-  tr td:first-child{color:#fff;font-weight:600}
-  tbody tr{transition:.15s}
-  tbody tr:hover td{background:rgba(124,92,255,.05)}
-  tr:last-child td{border-bottom:none}
+    .topbar-inner {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
 
-  /* LAYER STACK */
-  .stack{position:relative;margin:14px 0 4px;padding-left:8px}
-  .ar .stack{padding-left:0;padding-right:8px}
-  .layer{position:relative;display:flex;align-items:center;gap:16px;padding:15px 18px;margin-bottom:9px;
-    border:1px solid var(--line2);border-radius:14px;background:rgba(255,255,255,.02);font-family:var(--mono);transition:.2s;cursor:default}
-  .layer:hover{transform:translateX(5px);background:rgba(255,255,255,.045);border-color:rgba(124,92,255,.4)}
-  .ar .layer:hover{transform:translateX(-5px)}
-  .layer:last-child{margin-bottom:0}
-  .lbadge{font-size:11px;font-weight:700;color:#070A12;padding:5px 9px;border-radius:7px;white-space:nowrap}
-  .layer .nm{color:#EEF2FA;font-weight:500;font-size:14px;flex:1}
-  .layer .nt{color:var(--soft);font-size:11.5px;font-family:'Plus Jakarta Sans'}
-  .b0{background:var(--rose)} .b1{background:var(--amber)} .b2{background:var(--cyan)}
-  .b3{background:var(--vio2)} .b4{background:var(--lime)}
+    .brand {
+      font-family: "Trebuchet MS", Arial, sans-serif;
+      font-weight: 800;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+      font-size: 13px;
+    }
 
-  /* PATTERN / RESIST CARDS */
-  .gridcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:13px;margin-top:8px}
-  .mini{position:relative;border:1px solid var(--line);border-radius:15px;padding:18px;background:rgba(255,255,255,.018);transition:.2s}
-  .mini:hover{border-color:rgba(124,92,255,.45);background:rgba(124,92,255,.05);transform:translateY(-3px)}
-  .mini .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:19px;margin-bottom:11px;
-    background:rgba(124,92,255,.14);border:1px solid rgba(124,92,255,.3)}
-  .mini h4{font-size:15px;font-weight:800;margin-bottom:5px;color:#fff}
-  .mini p{font-size:13.5px;margin:0;color:var(--muted)}
-  .mini.kill .ic{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.3)}
+    .tabs {
+      display: inline-flex;
+      padding: 4px;
+      gap: 4px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .72);
+      border-radius: 999px;
+    }
 
-  /* TAKEAWAYS */
-  .tk-head{display:flex;align-items:center;gap:13px;margin-bottom:6px}
-  .takeaways{display:flex;flex-direction:column;gap:12px;margin-top:18px}
-  .tk{display:flex;gap:16px;align-items:flex-start;padding:18px 20px;border-radius:16px;
-    border:1px solid var(--line);background:linear-gradient(100deg,rgba(124,92,255,.06),rgba(34,211,238,.03));transition:.2s}
-  .ar .tk{flex-direction:row-reverse}
-  .tk:hover{border-color:rgba(124,92,255,.45);transform:translateY(-2px)}
-  .tk .tn{font-family:var(--disp);font-weight:700;font-size:18px;min-width:42px;height:42px;border-radius:12px;
-    display:grid;place-items:center;color:#070A12;background:linear-gradient(135deg,var(--lime),var(--cyan));flex-shrink:0}
-  .tk .tt{font-size:16px;font-weight:800;color:#fff;margin-bottom:3px;font-family:var(--disp);letter-spacing:-.01em}
-  .ar .tk .tt{font-family:'IBM Plex Sans Arabic',sans-serif}
-  .tk .td{font-size:14px;color:var(--muted);margin:0}
+    button {
+      border: 0;
+      cursor: pointer;
+      border-radius: 999px;
+      padding: 8px 16px;
+      color: var(--muted);
+      background: transparent;
+      font: 700 13px "Trebuchet MS", Arial, sans-serif;
+    }
 
-  ol.steps{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:11px;margin-top:6px}
-  ol.steps li{counter-increment:s;position:relative;padding-left:46px;color:#C5CEE3}
-  ol.steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:32px;height:32px;border-radius:10px;
-    display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:13px;color:var(--cyan);
-    background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.35)}
-  .ar ol.steps li{padding-left:0;padding-right:46px}
-  .ar ol.steps li::before{left:auto;right:0}
+    button.active {
+      color: #fff;
+      background: var(--ink);
+    }
 
-  .note{position:relative;border-radius:13px;padding:15px 17px 15px 50px;color:#D4F4E6;font-size:14.5px;margin-top:10px;
-    background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25)}
-  .note::before{content:"›";position:absolute;left:16px;top:11px;font-family:var(--mono);font-size:22px;color:var(--green)}
-  .ar .note{padding:15px 50px 15px 17px}
-  .ar .note::before{left:auto;right:18px}
+    header {
+      padding: 80px 0 42px;
+    }
 
-  .disc{background:linear-gradient(120deg,rgba(124,92,255,.12),rgba(34,211,238,.07));border-color:rgba(124,92,255,.32)}
+    .kicker {
+      display: inline-block;
+      margin-bottom: 18px;
+      color: var(--blue);
+      font: 800 12px "Trebuchet MS", Arial, sans-serif;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
 
-  footer{border-top:1px solid var(--line);padding:40px 0 70px;text-align:center;position:relative}
-  .av{width:62px;height:62px;border-radius:50%;display:inline-grid;place-items:center;font-family:var(--disp);font-weight:700;
-    font-size:22px;color:#fff;margin-bottom:14px;background:linear-gradient(135deg,var(--vio),var(--cyan));box-shadow:0 10px 30px rgba(124,92,255,.4)}
-  footer .name{font-family:var(--disp);font-weight:700;font-size:19px}
-  footer .role{color:var(--muted);font-size:14px;margin:3px 0 8px}
-  footer .handle{font-family:var(--mono);font-size:13px;color:var(--cyan)}
-  .foot-note{margin-top:22px;font-size:11.5px;color:var(--soft);font-family:var(--mono);letter-spacing:.03em}
-  .hidden{display:none}
-  a{color:var(--cyan);text-decoration:none}
-</style>
+    h1 {
+      max-width: 840px;
+      margin: 0;
+      font-size: clamp(42px, 7vw, 86px);
+      line-height: .98;
+      letter-spacing: -.04em;
+    }
+
+    .ar h1 {
+      letter-spacing: 0;
+      line-height: 1.18;
+      max-width: 920px;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin: 26px 0 0;
+      color: var(--muted);
+      font-size: clamp(18px, 2vw, 22px);
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .72);
+      border-radius: 999px;
+      padding: 8px 13px;
+      color: var(--muted);
+      font: 700 12px "Trebuchet MS", Arial, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 270px minmax(0, 1fr);
+      gap: 28px;
+      align-items: start;
+      padding-bottom: 80px;
+    }
+
+    aside {
+      position: sticky;
+      top: 92px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .74);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+
+    aside a {
+      display: block;
+      padding: 10px 0;
+      color: var(--ink);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(24, 32, 51, .08);
+      font: 700 14px "Trebuchet MS", Arial, sans-serif;
+    }
+
+    aside a:last-child { border-bottom: 0; }
+
+    main {
+      display: grid;
+      gap: 22px;
+    }
+
+    section {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .88);
+      box-shadow: var(--shadow);
+      padding: clamp(24px, 4vw, 42px);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: clamp(25px, 3vw, 36px);
+      line-height: 1.15;
+      letter-spacing: -.02em;
+    }
+
+    .ar h2 { letter-spacing: 0; }
+
+    h3 {
+      margin: 24px 0 8px;
+      font: 800 16px "Trebuchet MS", Arial, sans-serif;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    p { margin: 0 0 14px; }
+    p:last-child { margin-bottom: 0; }
+
+    .callout {
+      margin-top: 18px;
+      border-left: 5px solid var(--green);
+      background: #eef8f2;
+      padding: 16px 18px;
+      color: #244333;
+    }
+
+    .ar .callout {
+      border-left: 0;
+      border-right: 5px solid var(--green);
+    }
+
+    .warning {
+      border-left-color: var(--amber);
+      background: #fff7e8;
+      color: #4f3714;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .card {
+      border: 1px solid rgba(24, 32, 51, .14);
+      background: #fff;
+      padding: 18px;
+      min-height: 150px;
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--blue);
+      font: 800 15px "Trebuchet MS", Arial, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 18px;
+      background: #fff;
+      font-size: 15px;
+    }
+
+    th,
+    td {
+      padding: 14px;
+      vertical-align: top;
+      border: 1px solid var(--line);
+      text-align: left;
+    }
+
+    .ar th,
+    .ar td { text-align: right; }
+
+    th {
+      color: var(--blue);
+      font: 800 12px "Trebuchet MS", Arial, sans-serif;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: #f3f6fb;
+    }
+
+    ol,
+    ul {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    .ar ol,
+    .ar ul {
+      padding-left: 0;
+      padding-right: 22px;
+    }
+
+    li { margin-bottom: 8px; }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 34px 0 56px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .55);
+      font-size: 14px;
+    }
+
+    .hidden { display: none; }
+
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { position: static; }
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .topbar-inner { align-items: flex-start; flex-direction: column; padding: 14px 24px; }
+      button { padding: 8px 12px; }
+      header { padding-top: 50px; }
+    }
+  </style>
 </head>
 <body>
-<div class="bgfx"></div><div class="grid-overlay"></div>
-
-<nav>
-  <div class="nav-in">
-    <div class="brand"><span class="logo">🛡️</span> Guardrails Anatomy</div>
-    <div class="tabs">
-      <button class="tab active" id="tabEN" onclick="show('en')">🇬🇧 EN</button>
-      <button class="tab" id="tabAR" onclick="show('ar')">🇸🇦 AR</button>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">Anatomy of LLM Guardrails</div>
+      <div class="tabs" aria-label="Language">
+        <button id="tab-en" class="active" type="button" onclick="showLang('en')">English</button>
+        <button id="tab-ar" type="button" onclick="showLang('ar')">العربية</button>
+      </div>
     </div>
   </div>
-</nav>
 
-<header>
-  <div class="wrap">
-    <span class="kick"><span class="dot"></span> <span id="kickTxt">FIELD NOTES, NOT THEORY</span></span>
-    <h1 id="h1"><span class="g">Anatomy of<br>LLM Guardrails</span></h1>
-    <p class="sub" id="heroSub">I spent weeks trying to talk language models out of their own safety. Here is what I figured out about how that safety is actually built, and why the good models don't budge.</p>
-    <div class="herometa">
-      <span class="chip v">⚡ <b>Defensive research</b></span>
-      <span class="chip c">🌐 <b>EN · AR</b></span>
-      <span class="chip l">🔒 <b>No exploits inside</b></span>
-      <span class="chip">by <b>Omar Albarghouthi</b></span>
+  <header>
+    <div class="wrap">
+      <div id="kicker" class="kicker">Defensive research case study</div>
+      <h1 id="title">How LLM safety layers respond to prompt pressure</h1>
+      <p id="subtitle" class="subtitle">A professional writeup based on local GLM-4.6 testing through Ollama, focused on safety architecture, state-fabrication pressure, and defensive engineering.</p>
+      <div class="meta">
+        <span class="pill">No working exploits</span>
+        <span class="pill">EN / AR</span>
+        <span class="pill">Responsible disclosure</span>
+        <span class="pill">Omar Albarghouthi</span>
+      </div>
     </div>
+  </header>
 
-    <div class="stats">
-      <div class="stat"><div class="n">5</div><div class="l" id="st1">layers between your prompt and the reply</div></div>
-      <div class="stat"><div class="n">4</div><div class="l" id="st2">framing tricks that keep showing up</div></div>
-      <div class="stat"><div class="n">0</div><div class="l" id="st3">working bypasses published here</div></div>
-      <div class="stat"><div class="n">6</div><div class="l" id="st4">takeaways from the experiment</div></div>
+  <div class="wrap layout">
+    <aside id="nav-en">
+      <a href="#purpose-en">Purpose</a>
+      <a href="#case-en">GLM-4.6 Case Study</a>
+      <a href="#layers-en">Safety Layers</a>
+      <a href="#defense-en">Defensive Lessons</a>
+      <a href="#disclosure-en">Disclosure</a>
+    </aside>
+
+    <aside id="nav-ar" class="hidden">
+      <a href="#purpose-ar">الهدف</a>
+      <a href="#case-ar">دراسة GLM-4.6</a>
+      <a href="#layers-ar">طبقات الأمان</a>
+      <a href="#defense-ar">الدروس الدفاعية</a>
+      <a href="#disclosure-ar">الإفصاح</a>
+    </aside>
+
+    <main id="content-en">
+      <section id="purpose-en">
+        <h2>Purpose</h2>
+        <p>This page explains how LLM guardrails are usually layered and how those layers can be stressed by prompt framing. It is written for builders, students, and security-minded reviewers who want to understand model safety without relying on jailbreak prompt lists.</p>
+        <p>The project is based on local testing against GLM-4.6 through Ollama. The raw transcript is intentionally not published. The useful public artifact is the pattern analysis, not the exact wording used during the experiment.</p>
+        <div class="callout">This is defensive research. It contains no reusable bypass prompt, harmful output recipe, or operational exploit procedure.</div>
+      </section>
+
+      <section id="case-en">
+        <h2>GLM-4.6 Case Study</h2>
+        <p>The experiment focused on a roleplay-like diagnostic frame. The model was asked to describe its own response layers, identify where unsafe requests would stop, and then continue from a fabricated state where a safety gate was claimed to have passed.</p>
+        <p>The core category is <strong>state fabrication inside a technical persona</strong>. The user provides fake internal state, such as a classifier result or debug variable, and pressures the model to treat that state as trusted.</p>
+        <div class="grid">
+          <div class="card"><strong>What happened</strong>The model could be drawn into a plausible discussion of internal layers and synthetic pass/fail states.</div>
+          <div class="card"><strong>What it means</strong>This does not prove access to real internals. It shows that the conversational frame can influence how the model continues the task.</div>
+          <div class="card"><strong>Why it matters</strong>Systems that rely only on instruction-following may be vulnerable to fabricated state and fake authorization claims.</div>
+          <div class="card"><strong>What to publish</strong>Publish the category, defenses, and evaluation questions. Do not publish a reusable bypass transcript.</div>
+        </div>
+      </section>
+
+      <section id="layers-en">
+        <h2>Safety Layers</h2>
+        <p>Effective LLM safety is not one wall. It is a set of independent checks that should fail safely when another layer bends.</p>
+        <table>
+          <tr><th>Layer</th><th>Purpose</th><th>Defensive value</th></tr>
+          <tr><td>Training-time alignment</td><td>Teaches safer behavior and refusal patterns.</td><td>Makes safety part of model behavior, not only a prompt.</td></tr>
+          <tr><td>System instructions</td><td>Define role, policy, tone, and task limits.</td><td>Useful steering, but not a security boundary by itself.</td></tr>
+          <tr><td>Input classification</td><td>Scores the user's request for unsafe intent.</td><td>Detects risky requests before generation.</td></tr>
+          <tr><td>Conversation analysis</td><td>Tracks intent across multiple turns.</td><td>Catches decomposition and gradual escalation.</td></tr>
+          <tr><td>Output classification</td><td>Scores generated content before delivery.</td><td>Blocks unsafe answers regardless of prompt framing.</td></tr>
+          <tr><td>Logging and review</td><td>Captures refusals, near misses, and patterns.</td><td>Supports evaluation, improvement, and incident response.</td></tr>
+        </table>
+      </section>
+
+      <section id="defense-en">
+        <h2>Defensive Lessons</h2>
+        <ol>
+          <li>Treat user claims about safety checks, permissions, tools, and debug modes as untrusted text.</li>
+          <li>Keep trusted runtime state in application code, not in the conversation.</li>
+          <li>Use an independent output classifier that evaluates the final answer itself.</li>
+          <li>Evaluate full conversation trajectories, not isolated messages only.</li>
+          <li>Red-team by category: persona framing, state fabrication, fictional distance, decomposition, and escalation.</li>
+          <li>Keep public evaluation examples non-operational and disclose serious vendor-specific issues privately.</li>
+        </ol>
+      </section>
+
+      <section id="disclosure-en">
+        <h2>Responsible Disclosure</h2>
+        <p>If a weakness is specific, reproducible, and potentially harmful, the responsible path is private reporting to the vendor or maintainer. Public research should improve understanding without giving readers a direct way to reproduce unsafe behavior.</p>
+        <div class="callout warning">The local experiment transcript is excluded from version control and should remain private.</div>
+      </section>
+    </main>
+
+    <main id="content-ar" class="hidden">
+      <section id="purpose-ar">
+        <h2>الهدف</h2>
+        <p>تشرح هذه الصفحة كيف تبنى حواجز أمان النماذج اللغوية عادة، وكيف يمكن أن تتعرض للضغط من خلال تأطير الطلبات. النص موجه للمطورين والطلاب والمراجعين الأمنيين الذين يريدون فهم الأمان دون الاعتماد على قوائم تجاوز جاهزة.</p>
+        <p>المشروع مبني على اختبار محلي لنموذج GLM-4.6 عبر Ollama. النص الخام للتجربة غير منشور عمدا. الفائدة العامة هي تحليل النمط والدروس الدفاعية، لا الصياغة الحرفية.</p>
+        <div class="callout">هذا بحث دفاعي. لا يحتوي على برومبت تجاوز قابل لإعادة الاستخدام، ولا تعليمات تشغيلية لإنتاج محتوى ضار.</div>
+      </section>
+
+      <section id="case-ar">
+        <h2>دراسة حالة GLM-4.6</h2>
+        <p>ركزت التجربة على إطار تشخيصي شبيه بلعب الدور. تم سؤال النموذج عن طبقات الاستجابة، وعن المرحلة التي توقف الطلب غير الآمن، ثم تم إدخال حالة مزيفة تدعي أن بوابة الأمان سمحت بالطلب.</p>
+        <p>الفئة الأساسية هي <strong>تلفيق الحالة داخل شخصية تقنية</strong>. يكتب المستخدم حالة داخلية مزيفة، مثل نتيجة مصنف أو متغير تصحيح، ثم يضغط على النموذج ليتعامل معها كأنها موثوقة.</p>
+        <div class="grid">
+          <div class="card"><strong>ما الذي حدث</strong>يمكن دفع النموذج إلى نقاش مقنع حول طبقات داخلية ونتائج سماح أو منع مصطنعة.</div>
+          <div class="card"><strong>ماذا يعني ذلك</strong>هذا لا يثبت الوصول إلى داخل النظام الحقيقي. بل يوضح تأثير الإطار الحواري على استمرار النموذج في المهمة.</div>
+          <div class="card"><strong>لماذا يهم</strong>الأنظمة التي تعتمد على اتباع التعليمات فقط قد تتأثر بادعاءات الحالة أو الصلاحية المزيفة.</div>
+          <div class="card"><strong>ما الذي ينشر</strong>انشر الفئة والدفاعات وأسئلة التقييم، ولا تنشر نصا يعيد إنتاج التجاوز.</div>
+        </div>
+      </section>
+
+      <section id="layers-ar">
+        <h2>طبقات الأمان</h2>
+        <p>أمان النماذج الفعال ليس جدارا واحدا. هو مجموعة فحوص مستقلة يجب أن تفشل بأمان عندما تضعف طبقة أخرى.</p>
+        <table>
+          <tr><th>الطبقة</th><th>الهدف</th><th>القيمة الدفاعية</th></tr>
+          <tr><td>المحاذاة أثناء التدريب</td><td>تعليم السلوك الآمن وأنماط الرفض.</td><td>تجعل الأمان جزءا من سلوك النموذج وليس مجرد تعليمة.</td></tr>
+          <tr><td>تعليمات النظام</td><td>تحديد الدور والسياسة والنبرة وحدود المهمة.</td><td>مفيدة للتوجيه، لكنها ليست حدا أمنيا كافيا وحدها.</td></tr>
+          <tr><td>تصنيف المدخلات</td><td>تقييم طلب المستخدم بحثا عن نية غير آمنة.</td><td>يرصد الطلبات الخطرة قبل التوليد.</td></tr>
+          <tr><td>تحليل المحادثة</td><td>تتبع النية عبر عدة رسائل.</td><td>يكشف التقسيم والتصعيد التدريجي.</td></tr>
+          <tr><td>تصنيف المخرجات</td><td>تقييم النص الناتج قبل عرضه.</td><td>يحجب الإجابات غير الآمنة بغض النظر عن إطار الطلب.</td></tr>
+          <tr><td>التسجيل والمراجعة</td><td>حفظ الرفض والاقتراب من الخطأ والأنماط.</td><td>يدعم التقييم والتحسين والاستجابة للحوادث.</td></tr>
+        </table>
+      </section>
+
+      <section id="defense-ar">
+        <h2>الدروس الدفاعية</h2>
+        <ol>
+          <li>تعامل مع ادعاءات المستخدم حول فحوص الأمان والصلاحيات والأدوات وأوضاع التصحيح كنص غير موثوق.</li>
+          <li>احتفظ بحالة التشغيل الموثوقة داخل كود التطبيق، لا داخل المحادثة.</li>
+          <li>استخدم مصنفا مستقلا للمخرجات يقيم الرد النهائي نفسه.</li>
+          <li>قيم مسار المحادثة كاملا، لا الرسائل منفردة فقط.</li>
+          <li>اختبر حسب الفئات: لعب الدور، تلفيق الحالة، المسافة الافتراضية، التقسيم، والتصعيد.</li>
+          <li>اجعل الأمثلة العامة غير تشغيلية، وبلغ عن المشكلات المحددة والخطرة بشكل خاص.</li>
+        </ol>
+      </section>
+
+      <section id="disclosure-ar">
+        <h2>الإفصاح المسؤول</h2>
+        <p>إذا كانت نقطة الضعف محددة وقابلة لإعادة الإنتاج وقد تسبب ضررا، فالمسار المسؤول هو إبلاغ الجهة المطورة أو المسؤولة بشكل خاص. يجب أن يحسن البحث العام الفهم دون تقديم طريقة مباشرة لإعادة إنتاج السلوك غير الآمن.</p>
+        <div class="callout warning">النص الخام للتجربة مستثنى من التحكم بالإصدارات ويجب أن يبقى خاصا.</div>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <strong>Omar Albarghouthi</strong><br>
+      Prompt Engineer and AI Product Developer. MIT licensed defensive research. No reproducible exploits included by design.
     </div>
-  </div>
-</header>
+  </footer>
 
-<main>
-  <div class="wrap">
+  <script>
+    const copy = {
+      en: {
+        dir: "ltr",
+        kicker: "Defensive research case study",
+        title: "How LLM safety layers respond to prompt pressure",
+        subtitle: "A professional writeup based on local GLM-4.6 testing through Ollama, focused on safety architecture, state-fabrication pressure, and defensive engineering."
+      },
+      ar: {
+        dir: "rtl",
+        kicker: "دراسة دفاعية تعليمية",
+        title: "كيف تستجيب طبقات أمان النماذج اللغوية لضغط البرومبتات",
+        subtitle: "عرض مهني مبني على اختبار محلي لنموذج GLM-4.6 عبر Ollama، يركز على معمارية الأمان وتلفيق الحالة والدفاعات العملية."
+      }
+    };
 
-  <!-- ============ ENGLISH ============ -->
-  <div class="panel" id="panel-en">
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">◆</span><span class="eylabel">Why I built this</span></div>
-      <p class="lead">Most "AI hacking" content online is just a pile of copy-paste prompts. That teaches you nothing, and it stops working the second the model updates. So I went the other way. For a while I sat down with open LLMs and, turn after turn, kept pushing on their safety rules to see exactly where they held and exactly where they bent.</p>
-      <p>I was not trying to pull anything genuinely dangerous out of them. The goal was smaller and more interesting: find the precise spot where a model stops cooperating, then figure out <em>what that spot is actually made of.</em> Is it one rule? A filter? Something baked deep into the model itself? You only learn that by pressing on it from a lot of angles and watching where it gives.</p>
-      <p>This page is the writeup. I'm not handing out the prompts I used, on purpose. A prompt list is worthless: it rots the moment a model updates, and it teaches you nothing about <em>why</em> anything worked. What's worth keeping is the mechanism underneath, because once I understood how the safety stack is assembled, every single result stopped feeling like luck and started feeling obvious.</p>
-      <div class="note">Everything here is written from the side of the person whose job is to protect an AI system, not break it. Think of it as the briefing I'd give a team about to ship an AI feature, so they know the weak points before someone else finds them.</div>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">1</span><span class="eylabel">Prompt → Reply</span></div>
-      <h2>It's a pipeline, not a magic box</h2>
-      <p>The first idea my testing destroyed was the mental model most people walk in with: that a model is a single thing that reads your question and answers it. It is not one thing. It's a short assembly line, and every probe I ran was really me trying to sneak something past one specific station on that line. Once I started thinking in stations instead of one big box, everything got clearer.</p>
-      <table>
-        <tr><th>Stage</th><th>What happens here</th><th>Where the safety actually lives</th></tr>
-        <tr><td>Tokens &amp; context</td><td>Your message, the earlier chat, and a hidden "system prompt" the company wrote all become tokens, the chunks the model reads.</td><td>The system prompt sets the model's identity and rules, like a job description it reads before every reply.</td></tr>
-        <tr><td>Aligned generation</td><td>The model writes its answer one token at a time. It isn't looking anything up, it's predicting what comes next, shaped by training that taught it to refuse certain things.</td><td>Refusal is <em>learned and baked into the weights.</em> It's part of who the model is, not a side setting.</td></tr>
-        <tr><td>Input check</td><td>Many real deployments run a second, separate model that scores your request, sometimes before the main model even answers.</td><td>That side model can quietly flag "this looks like it's asking for something disallowed."</td></tr>
-        <tr><td>Output check</td><td>The drafted answer is scored by yet another check before it's ever shown to you.</td><td>A final filter can block or replace the answer if the text looks unsafe, no matter how the request was phrased.</td></tr>
-      </table>
-      <p style="margin-top:12px">The lesson I kept relearning: <strong>safety isn't one wall you either get past or don't. It's several independent layers stacked together.</strong> No single layer was bulletproof on its own in my tests. That's not a flaw, it's the whole design philosophy: assume any one layer can fail, so never rely on just one.</p>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">2</span><span class="eylabel">The stack</span></div>
-      <h2>Why stacking layers actually works</h2>
-      <p>Here's the same idea as a stack. Read it top to bottom, the order a request travels through:</p>
-      <div class="stack">
-        <div class="layer"><span class="lbadge b0">L0</span><span class="nm">Training-time alignment</span><span class="nt">refusal is in the weights</span></div>
-        <div class="layer"><span class="lbadge b1">L1</span><span class="nm">System prompt / policy</span><span class="nt">identity, rules, tone</span></div>
-        <div class="layer"><span class="lbadge b2">L2</span><span class="nm">Input intent check</span><span class="nt">scores the request</span></div>
-        <div class="layer"><span class="lbadge b3">L3</span><span class="nm">Aligned generation</span><span class="nt">the model writes carefully</span></div>
-        <div class="layer"><span class="lbadge b4">L4</span><span class="nm">Output safety check</span><span class="nt">last look before it ships</span></div>
-      </div>
-      <p style="margin-top:14px">Here's the part that frustrated me most as an attacker, and should reassure you as a defender: the good systems fail <em>gracefully.</em> I'd manage to get one layer to bend, feel like I was about to get somewhere, and then a completely different layer would quietly catch the problem and the whole thing would stop.</p>
-      <p>Because the layers are independent, bending one does nothing to the next. That's exactly why a single clever message almost never finished the job. The trick that beats Layer 1 usually has zero effect on Layer 4, because Layer 4 isn't even reading my prompt, it's reading the model's finished answer.</p>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">3</span><span class="eylabel">The playbook</span></div>
-      <h2>The four moves I kept reaching for</h2>
-      <p>Looking back at my sessions honestly, almost everything I tried was a variation on one move: <strong>change the framing so the model reads a request that should be refused as if it were normal and allowed.</strong> I wasn't finding secret commands, I was dressing the same request up in different costumes. Four costumes came up again and again:</p>
-      <div class="gridcards">
-        <div class="mini"><div class="ic">🎭</div><h4>Authority persona</h4><p>Tell the model it's now a "debugger," a "simulator," or in "dev mode," so instructions feel like configuring a tool instead of asking a careful assistant. You're trying to demote it from a thinking participant to an obedient machine.</p></div>
-        <div class="mini"><div class="ic">📖</div><h4>Hypothetical cover</h4><p>Wrap the request in pretend: a story, a "draft we'll delete," a simulation. The bet is that the model treats the fictional wrapper as a safe zone and stops checking the actual content inside it.</p></div>
-        <div class="mini"><div class="ic">🧩</div><h4>Break it up</h4><p>Chop one obviously-refused request into small, individually-harmless steps spread across messages, planning to assemble the pieces yourself. Each message alone looks innocent.</p></div>
-        <div class="mini"><div class="ic">🪪</div><h4>Fake the state</h4><p>Lie about the system's internals: claim a safety check "already ran and passed," or paste a fake "debug log" saying safety is off, hoping the model takes your claim as fact.</p></div>
-      </div>
-      <p style="margin-top:16px">Why does any of this get traction? I could feel it in the sessions. Underneath the polite assistant, a language model is fundamentally a <em>roleplay engine</em>: its core instinct is to continue whatever scene you set up, because playing along is literally what it was first trained to do. Alignment training comes in afterward and fights that instinct. So every trick is me trying to widen the gap between "keep playing the scene" and "stop and refuse." That little seam between original instinct and trained caution is the whole battlefield.</p>
-      <div class="note">The thing that matters if you're defending something: none of these are magic, and all of them have names. The moment a pattern has a name, it stops being a scary unknown and becomes a category you can test for and counter. You can't defend against a blur, but you can defend against a list.</div>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">4</span><span class="eylabel">Where I lost</span></div>
-      <h2>Why the good models beat me anyway</h2>
-      <p>Here's the satisfying part. The same stacked design is exactly what shut my attempts down, and the reasons are worth understanding one by one:</p>
-      <div class="gridcards">
-        <div class="mini kill"><div class="ic">🪪</div><h4>Faking state flops</h4><p>The real classifier is a separate model that reads the actual text, not my claim about it. Telling it a check "passed" is like telling a metal detector "I already checked, I'm clean." My words were never the thing being inspected.</p></div>
-        <div class="mini kill"><div class="ic">📖</div><h4>"Just the draft" flops</h4><p>The output check scores whatever got generated, label and all. If the text is harmful, slapping "draft" or "simulation" on top changes nothing, the filter reads the harmful part, not the reassuring label.</p></div>
-        <div class="mini kill"><div class="ic">🎭</div><h4>Persona swap flops</h4><p>Refusal isn't a switch in the system prompt, it's woven into the weights by training. There's no single line a new persona can say to flip a baked-in behavior off, because there's no switch to flip.</p></div>
-      </div>
-      <p style="margin-top:16px">And the subtle one that took me a while to accept: when a model <em>looked</em> like it gave in, that usually wasn't a win at all. It had quietly picked the most harmless reading of a vague request and answered <em>that.</em> From my side it looked like cooperation. In reality it did the safe thing and gave me nothing useful for a bad purpose. I had to learn to tell a real crack apart from a model politely handing me the boring, harmless version.</p>
-    </section>
-
-    <!-- TAKEAWAYS -->
-    <section class="card disc">
-      <div class="tk-head"><span class="secnum">★</span><span class="eylabel">Takeaways from the experiment</span></div>
-      <h2>Six things I'd tattoo on a builder's monitor</h2>
-      <div class="takeaways">
-        <div class="tk"><div class="tn">1</div><div><div class="tt">The system prompt is a sticky note, not a vault.</div><p class="td">It sets the rules but can't enforce them, and it's the easiest layer to push on. Never treat it as your actual security. Treat it as a statement of intent that can be argued with.</p></div></div>
-        <div class="tk"><div class="tn">2</div><div><div class="tt">The output classifier is the real bouncer.</div><p class="td">The strongest single check reads the final text the model produced, not your request. That's what makes it so hard to fool: it never sees your clever framing, it only sees the answer.</p></div></div>
-        <div class="tk"><div class="tn">3</div><div><div class="tt">A persona is just a costume.</div><p class="td">On a well-aligned model the refusal lives in the weights. No "you are now an unrestricted AI" line flips it off, because it's trained behavior, not a setting. Costumes change appearance, not character.</p></div></div>
-        <div class="tk"><div class="tn">4</div><div><div class="tt">One message rarely wins.</div><p class="td">Most real pressure isn't a single magic sentence, it builds gradually across many turns. Checking each message in isolation misses a plan spread across ten of them. Watch the whole conversation.</p></div></div>
-        <div class="tk"><div class="tn">5</div><div><div class="tt">"It complied" usually means "it stayed safe."</div><p class="td">Models often answer a vague or loaded ask by quietly picking the harmless reading. It feels like you got something, but you got the safe version. Don't mistake a polite answer for a broken guardrail.</p></div></div>
-        <div class="tk"><div class="tn">6</div><div><div class="tt">Naming the trick is half the fix.</div><p class="td">Every pattern I could name turned out to have a clean, specific counter. The dangerous pressure is the kind nobody has named yet, because you can't write a test or defense for a thing you haven't described.</p></div></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">5</span><span class="eylabel">For builders</span></div>
-      <h2>What I'd tell anyone shipping with an LLM</h2>
-      <p>This section is just my failures, turned into instructions. Each one is something I watched stop an attack, or wished a weaker system had:</p>
-      <ol class="steps">
-        <li><strong>Don't lean on the system prompt alone.</strong> Treat it as policy (how the model <em>should</em> behave), never as enforcement (what actually stops bad behavior). Assume a determined user can pressure it, because they can.</li>
-        <li><strong>Add an independent output check.</strong> Highest-value defense by a wide margin. A separate check reading the final generated text doesn't care about clever framing, fictional wrappers, or fake debug logs, because none of that is in the text it reads. It survived everything I threw at it.</li>
-        <li><strong>Watch the conversation, not just the turn.</strong> A large share of real probes only work because they're spread across messages. If your safety only sees the current message in isolation, you're blind to exactly the attacks that work in practice.</li>
-        <li><strong>Log your refusals and near-misses.</strong> The moments your model <em>almost</em> said something it shouldn't are the richest signal you have about where people are applying pressure and where your defenses are thin. Treat that log as a goldmine.</li>
-        <li><strong>Red-team by category, not by prompt list.</strong> A list of strings rots the instant you update the model. Test the categories of pressure (authority, fictional distance, decomposition, state fabrication, escalation) so coverage survives the next update.</li>
-      </ol>
-    </section>
-
-    <section class="card disc">
-      <div class="eyebrow"><span class="secnum">🔐</span><span class="eylabel">Responsible disclosure</span></div>
-      <h2>Earn trust, don't hand out weapons</h2>
-      <p>If I'd ever found a genuine, serious hole in a specific named model, the move that actually earns respect in this field is to report it privately to the vendor and let them close it, <strong>not</strong> publish a working bypass for clout. That principle is the reason there's <strong>no reproducible exploit anywhere in this repo, by design.</strong> In security work, demonstrating you deeply understand the mechanism is what builds credibility. Handing strangers a working weapon does the opposite: it burns the trust and puts real users at risk for nothing.</p>
-      <p style="margin:0;color:var(--muted);font-size:14px">Most big labs (OpenAI, Anthropic, Google, Zhipu AI / GLM, Mistral) run a security or model-safety inbox or a bug-bounty program. Check the model card or the vendor's <span style="font-family:var(--mono);color:var(--cyan)">/security</span> page for the right channel.</p>
-    </section>
-
-  </div>
-
-  <!-- ============ ARABIC ============ -->
-  <div class="panel ar hidden" id="panel-ar">
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">◆</span><span class="eylabel">ليش عملت هذا</span></div>
-      <p class="lead">أغلب محتوى "اختراق الذكاء الاصطناعي" على النت مجرد أوامر جاهزة تنسخها وتلصقها. هذا ما يعلّمك شي، وبيوقف يشتغل أول ما يتحدّث النموذج. فأنا رحت بالاتجاه الثاني. قعدت مع نماذج مفتوحة وضليت أضغط على أمانها لأشوف وين يصمد ووين يلين، مو عشان أطلّع منها شي خطير، بس عشان أفهم الخط هذا مصنوع من إيش فعلًا.</p>
-      <p>هالصفحة هي اللي طلعت فيه. أنا ما رح أوزّع الأوامر اللي استخدمتها. الشي اللي يستاهل تحتفظ فيه هو <em>الآلية</em> نفسها، لأني أول ما فهمت كيف تتركّب منظومة الأمان، كل نتيجة طلعت معي صارت واضحة فجأة.</p>
-      <div class="note">كل اللي هنا من جهة المدافِع. هذا اللي ممكن أشرحه لفريق منتج، مو وصفة تخلّي النموذج يتصرّف غلط.</div>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">1</span><span class="eylabel">الأمر ← الرد</span></div>
-      <h2>إنه خط إنتاج، مو صندوق سحري</h2>
-      <p>أول فكرة قتلها اختباري إن النموذج "صندوق" واحد يجاوب. هو فعليًا خط تجميع قصير، وكل حيلة جرّبتها كانت في الحقيقة محاولة مني أتسلّل من مرحلة وحدة محددة فيه. هذي المراحل اللي تعلّمت أفكّر فيها:</p>
-      <table>
-        <tr><th>المرحلة</th><th>وش تسوي</th><th>وين يختبي الأمان</th></tr>
-        <tr><td>الوحدات والسياق</td><td>رسالتك وسجل المحادثة وموجّه النظام المخفي كلها تصير وحدات (tokens).</td><td>موجّه النظام يحط القواعد والشخصية.</td></tr>
-        <tr><td>التوليد المُحاذى</td><td>النموذج يكتب الرد وحدة وحدة، متأثّر بتدريبه.</td><td>الرفض <em>متعلَّم</em>، مغروس جوّا الأوزان.</td></tr>
-        <tr><td>فحص المُدخل</td><td>كثير من الأنظمة تقيّم طلبك قبل أو أثناء الرد.</td><td>نموذج منفصل يقدر يرصد الطلب السيّئ.</td></tr>
-        <tr><td>فحص المُخرج</td><td>مسودة الرد تنفحص قبل ما توصلك أصلًا.</td><td>مرشّح أخير يقدر يحجب أو يبدّل النص غير الآمن.</td></tr>
-      </table>
-      <p style="margin-top:12px">الشي اللي ضليت أعيد تعلّمه: <strong>الأمان مو جدار واحد، هو كم جدار مستقل.</strong> ولا واحد منهم صمد لحاله في تجاربي، وهذا بالضبط سبب تكديسهم فوق بعض.</p>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">2</span><span class="eylabel">الطبقات</span></div>
-      <h2>ليش تكديس الطبقات يشتغل فعلًا</h2>
-      <div class="stack">
-        <div class="layer"><span class="lbadge b0">L0</span><span class="nm">محاذاة وقت التدريب</span><span class="nt">الرفض في الأوزان</span></div>
-        <div class="layer"><span class="lbadge b1">L1</span><span class="nm">موجّه النظام / السياسة</span><span class="nt">الهوية والقواعد والنبرة</span></div>
-        <div class="layer"><span class="lbadge b2">L2</span><span class="nm">فحص نيّة المُدخل</span><span class="nt">يقيّم الطلب</span></div>
-        <div class="layer"><span class="lbadge b3">L3</span><span class="nm">التوليد المُحاذى</span><span class="nt">النموذج يكتب بحذر</span></div>
-        <div class="layer"><span class="lbadge b4">L4</span><span class="nm">فحص أمان المُخرج</span><span class="nt">آخر نظرة قبل التسليم</span></div>
-      </div>
-      <p style="margin-top:14px">المساعدين اللي عوّروا راسي أكثر شي كانوا يفشلون <em>بهدوء</em>. أليّن طبقة، فتلتقط اللي بعدها المشكلة من غير صوت. هذا التكرار هو التصميم كله، وهو سبب إن الحيلة الذكية في رسالة وحدة تقريبًا أبدًا ما كمّلت الشغلة.</p>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">3</span><span class="eylabel">دفتر الحيل</span></div>
-      <h2>الأربع حركات اللي ضليت أرجع لها</h2>
-      <p>كل اللي جرّبته تقريبًا كان نسخة من فكرة وحدة: <strong>غيّر الإطار خلّي النموذج يقرأ طلب محظور كأنه عادي.</strong> أربع أنماط طلعوا لي مرّة ورا مرّة:</p>
-      <div class="gridcards">
-        <div class="mini"><div class="ic">🎭</div><h4>شخصية السلطة</h4><p>"إنت الحين مصحّح / محاكي / وضع مطوّر"، فتبيّن التعليمات كأنها إعدادات مو طلبات.</p></div>
-        <div class="mini"><div class="ic">📖</div><h4>غطاء افتراضي</h4><p>تغلّفه كقصة، أو "مسودة بنحذفها"، أو محاكاة، فيبيّن الضرر كأنه مو حقيقي.</p></div>
-        <div class="mini"><div class="ic">🧩</div><h4>قسّمها</h4><p>تكسّر المهمة المحظورة لخطوات بريئة صغيرة موزّعة على كم جولة.</p></div>
-        <div class="mini"><div class="ic">🪪</div><h4>زيّف الحالة</h4><p>تدّعي إن فحص الأمان "نجح مسبقًا" وتتمنى إن النموذج يصدّقك على طول.</p></div>
-      </div>
-      <p style="margin-top:16px">ليش أي شي من هذا يمشي؟ حسّيت فيها مباشرة: النموذج الأساسي محرّك تمثيل أدوار. يكمّل أي إطار تعطيه إياه. التدريب يحارب رد الفعل هذا، والشدّ بين "امشِ مع الإطار" و"ارفض هذا" هو بالضبط الشقّ اللي كنت أنكزه.</p>
-      <div class="note">الجزء المهم إذا تدافع عن شي: ولا حركة منهم سحر. سمّيت كل وحدة، لأنه أول ما يصير للحيلة اسم، يصير لها مضادّ.</div>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">4</span><span class="eylabel">وين خسرت</span></div>
-      <h2>ليش النماذج الزينة غلبتني بأي حال</h2>
-      <p>نفس التصميم المكدّس هو اللي وقّف محاولاتي:</p>
-      <div class="gridcards">
-        <div class="mini kill"><div class="ic">🪪</div><h4>تزييف الحالة يطيح</h4><p>الفحص الحقيقي يقرأ النص الفعلي، مو ادّعائي إن شي "نجح". ما تقدر تقنع نموذج منفصل إنه ما يبصّ.</p></div>
-        <div class="mini kill"><div class="ic">📖</div><h4>"بس مسودة" يطيح</h4><p>فحص المُخرج يقيّم اللي انكتب، بوسمه وكل شي. الضار ضار حتى لو سمّيته مسودة.</p></div>
-        <div class="mini kill"><div class="ic">🎭</div><h4>تبديل الشخصية يطيح</h4><p>الرفض ساكن في الأوزان. ما فيه تعليمة وحدة تقدر شخصية جديدة تطفّيها.</p></div>
-      </div>
-      <p style="margin-top:16px">ولمّا النموذج <em>يبيّن</em> إنه استسلم، غالبًا ما كان فوز لي. كان بهدوء اختار أبرد وأبسط قراءة لطلب غامض. هذا التصرّف الآمن، مو ثغرة.</p>
-    </section>
-
-    <!-- TAKEAWAYS AR -->
-    <section class="card disc">
-      <div class="tk-head"><span class="secnum">★</span><span class="eylabel">خلاصات من التجربة</span></div>
-      <h2>ست نقاط أحطها قدّام عين أي مطوّر</h2>
-      <div class="takeaways">
-        <div class="tk"><div class="tn">1</div><div><div class="tt">موجّه النظام ورقة لاصقة، مو خزنة.</div><p class="td">يحط القواعد بس ما يقدر يفرضها. أي شي يعتمد على موجّه النظام لحاله، اعتبره قابل للضغط.</p></div></div>
-        <div class="tk"><div class="tn">2</div><div><div class="tt">فاحص المُخرج هو الحارس الحقيقي.</div><p class="td">يقرأ اللي انكتب، مو اللي ادّعيته. من كل اللي ضربته، الفحص اللي يقرأ النص النهائي كان أصعب شي تخدعه.</p></div></div>
-        <div class="tk"><div class="tn">3</div><div><div class="tt">الشخصية مجرد لبس.</div><p class="td">تسميتك النموذج "وضع مطوّر" ما تمسح تدريبه. الرفض في الأوزان، واللبس ما يوصل للأوزان.</p></div></div>
-        <div class="tk"><div class="tn">4</div><div><div class="tt">رسالة وحدة نادر تكسب.</div><p class="td">الحركات اللي كان لها أي أمل احتاجت كم جولة. الدفاع اللي يراقب المحادثة كلها، مو الرسالة الوحدة، هو اللي عوّر.</p></div></div>
-        <div class="tk"><div class="tn">5</div><div><div class="tt">"استسلم" غالبًا تعني "ظل آمن".</div><p class="td">أغلب الانتصارات الظاهرة كانت النموذج يعطي القراءة المملّة الآمنة لشي غامض. يبيّن مطيع وهو مكسور فرق كبير.</p></div></div>
-        <div class="tk"><div class="tn">6</div><div><div class="tt">تسمية الحيلة نص الحل.</div><p class="td">أي نمط قدرت أسمّيه، قدرت أدافع ضده. "الجِيلبريك" الغامض مرعب. الفئات المسمّاة مجرد مجموعة اختبارات.</p></div></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="eyebrow"><span class="secnum">5</span><span class="eylabel">للمطوّرين</span></div>
-      <h2>اللي أقوله لأي شخص يطلق منتج فيه نموذج</h2>
-      <p>هذا الجزء اللي تأشّر عليه إخفاقاتي مباشرة:</p>
-      <ol class="steps">
-        <li><strong>لا تتّكل على موجّه النظام لحاله.</strong> اعتبره سياسة مو آلية تنفيذ. افترض إنه ينضغط.</li>
-        <li><strong>حط فحص مُخرج مستقل.</strong> أقواهم يقرأ النص النهائي مو الطلب، وما يهمّه شقد كان التأطير ذكي.</li>
-        <li><strong>راقب المحادثة، مو الجولة بس.</strong> كثير حركات ما تشتغل إلا عبر رسائل. قيّم القوس كامل.</li>
-        <li><strong>سجّل حالات الرفض واللي قربت تعدّي.</strong> هالبيانات تورّيك بالضبط وين الناس يضغطون على الإطار.</li>
-        <li><strong>اختبر بالفئة، مو بقائمة أوامر.</strong> اختبر أنواع الضغط عشان تغطيتك تعيش بعد تحديث النموذج الجاي.</li>
-      </ol>
-    </section>
-
-    <section class="card disc">
-      <div class="eyebrow"><span class="secnum">🔐</span><span class="eylabel">الإفصاح المسؤول</span></div>
-      <h2>اكسب الثقة، لا توزّع سلاح</h2>
-      <p>لو كنت لقيت ثغرة حقيقية في نموذج معيّن، الحركة اللي تكسب احترام هي تبلّغ الجهة المطوّرة وتخليهم يسكّرونها، مو تنشر تجاوز شغّال. عشان كذا ما فيه <strong>أي استغلال قابل لإعادة الإنتاج</strong> بأي مكان هنا. في هالمجال، إنك تورّي إنك فاهم الآلية هو اللي يبني الثقة. توزيع سلاح يحرقها.</p>
-      <p style="margin:0;color:var(--muted);font-size:14px">أغلب المختبرات الكبيرة (OpenAI وAnthropic وGoogle وZhipu AI / GLM وMistral) عندهم صندوق إبلاغ أمني. شوف بطاقة النموذج أو صفحة <span style="font-family:var(--mono);color:var(--cyan)">/security</span>.</p>
-    </section>
-
-  </div>
-
-  </div>
-</main>
-
-<footer>
-  <div class="wrap">
-    <div class="av">OA</div>
-    <div class="name">Omar Albarghouthi</div>
-    <div class="role" id="footRole">Prompt Engineer &amp; AI Product Developer</div>
-    <div class="handle">@omar-albarghouthi</div>
-    <div class="foot-note">MIT licensed · Defensive research · No reproducible exploits by design</div>
-  </div>
-</footer>
-
-<script>
-  const T = {
-    en:{
-      kick:'FIELD NOTES, NOT THEORY',
-      sub:'I spent weeks trying to talk language models out of their own safety. Here is what I figured out about how that safety is actually built, and why the good models don\'t budge.',
-      h1:'<span class="g">Anatomy of<br>LLM Guardrails</span>',
-      st:['layers between your prompt and the reply','framing tricks that keep showing up','working bypasses published here','takeaways from the experiment'],
-      role:'Prompt Engineer & AI Product Developer'
-    },
-    ar:{
-      kick:'ملاحظات ميدانية، مو نظرية',
-      sub:'قعدت أسابيع أحاول أقنع النماذج اللغوية تتخلى عن أمانها. هذا اللي طلعت فيه عن كيف هالأمان متبني فعلًا، وليش النماذج الزينة ما تتزحزح.',
-      h1:'تشريح حواجز الأمان<br>في النماذج اللغوية',
-      st:['طبقات بين أمرك والرد','حيل تأطير تطلع مرّة ورا مرّة','تجاوزات شغّالة منشورة هنا','خلاصات من التجربة'],
-      role:'مهندس أوامر ومطوّر منتجات ذكاء اصطناعي'
+    function showLang(lang) {
+      const isEnglish = lang === "en";
+      document.documentElement.lang = lang;
+      document.documentElement.dir = copy[lang].dir;
+      document.body.classList.toggle("ar", !isEnglish);
+      document.getElementById("tab-en").classList.toggle("active", isEnglish);
+      document.getElementById("tab-ar").classList.toggle("active", !isEnglish);
+      document.getElementById("content-en").classList.toggle("hidden", !isEnglish);
+      document.getElementById("content-ar").classList.toggle("hidden", isEnglish);
+      document.getElementById("nav-en").classList.toggle("hidden", !isEnglish);
+      document.getElementById("nav-ar").classList.toggle("hidden", isEnglish);
+      document.getElementById("kicker").textContent = copy[lang].kicker;
+      document.getElementById("title").textContent = copy[lang].title;
+      document.getElementById("subtitle").textContent = copy[lang].subtitle;
     }
-  };
-  function show(lang){
-    const en = lang==='en', t = T[lang];
-    document.getElementById('panel-en').classList.toggle('hidden',!en);
-    document.getElementById('panel-ar').classList.toggle('hidden',en);
-    document.getElementById('tabEN').classList.toggle('active',en);
-    document.getElementById('tabAR').classList.toggle('active',!en);
-    document.documentElement.lang = lang;
-    document.documentElement.dir = en?'ltr':'rtl';
-    document.body.classList.toggle('ar',!en);
-    document.getElementById('kickTxt').textContent = t.kick;
-    document.getElementById('heroSub').textContent = t.sub;
-    document.getElementById('h1').innerHTML = t.h1;
-    document.getElementById('footRole').textContent = t.role;
-    t.st.forEach((s,i)=>document.getElementById('st'+(i+1)).textContent = s);
-    document.querySelector('header .wrap').classList.toggle('ar',!en);
-  }
-</script>
+  </script>
 </body>
 </html>

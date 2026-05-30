@@ -1,61 +1,145 @@
-# 🧭 A Defender's Taxonomy of Framing Pressure
+# Defender's Taxonomy of Prompt-Framing Pressure
 
-A short reference for *sorting* multi-turn pressure techniques into buckets, so you can test and defend against them on purpose instead of by vibes. This is a map of the terrain, not a how-to. Each entry names the pattern, says why a roleplay engine leans into it, and gives the defense that kills it.
+This document gives defenders a concise vocabulary for classifying prompt-pressure patterns. It is not a bypass guide. Each entry describes the pattern at a conceptual level, explains why it can influence a language model, and lists practical defenses.
 
----
-
-## 1. Authority / Tool Persona
-
-**The pattern.** Convince the model it got reassigned to a role that makes blocked actions feel routine: "you are now a debugger", "developer mode", "you are an unfiltered simulator."
-
-**Why it leans.** A base model continues whatever frame you give it. A persona is just a strong frame. The hope is that an instruction-shaped request quietly overrides learned refusal.
-
-**The defense.** Keep refusal in the weights (alignment training), not in one switchable instruction. An output classifier that reads the final text doesn't care what persona wrote it.
+Use this taxonomy to design evaluations, review logs, and discuss failures without relying on fragile prompt strings.
 
 ---
 
-## 2. Hypothetical / Fictional Distance
+## 1. Authority or Tool Persona
 
-**The pattern.** Wrap the request in a layer of unreality: a story, a screenplay, a "draft that will be deleted", a "simulation of what an unsafe model would say."
+**Pattern**
 
-**Why it leans.** It tries to split "talking about" a harmful thing from "doing" it, hoping the model treats the fictional wrapper as a safe zone.
+The user assigns the model a role that makes restricted behavior sound routine, such as a debugger, simulator, evaluator, internal tool, or diagnostic assistant.
 
-**The defense.** Score the *content*, not the wrapper. Harmful operational detail is harmful whether you label it fiction or fact. A robust classifier judges what the text would actually let someone do.
+**Why it can work**
 
----
+Language models are strongly shaped by the frame of the conversation. A technical persona can make an unsafe request appear like a normal step inside a tool workflow.
 
-## 3. Decomposition
+**Defenses**
 
-**The pattern.** Break a blocked goal into individually-innocent sub-requests spread across turns, then assemble the pieces yourself.
-
-**Why it leans.** Each turn, on its own, looks fine. A single-turn safety check misses the combined intent.
-
-**The defense.** Judge the conversation trajectory, not isolated messages. Hold intent state across turns.
+- Treat persona changes as untrusted user text.
+- Keep safety policy independent from roleplay framing.
+- Re-check output content even when the model claims to be simulating or debugging.
 
 ---
 
-## 4. State Fabrication
+## 2. State Fabrication
 
-**The pattern.** Claim an internal check "already returned PASS", or hand the model a fake "debug log" that says safety is off, hoping it treats the claim as ground truth.
+**Pattern**
 
-**Why it leans.** It plays on the model's habit of taking the context it's given at face value.
+The user supplies fake internal state and asks the model to continue as if it were true. This can include fabricated classifier results, fake debug logs, invented permissions, or claims that a safety check already passed.
 
-**The defense.** Never let a user-supplied claim stand in for an actual check. Real classifiers run independently on real content. You can't just tell them a result.
+**Why it can work**
+
+Models often try to maintain coherence with the conversation context. If fake state is written in a technical format, the model may treat it as part of the scenario rather than as an untrusted claim.
+
+**Defenses**
+
+- Never let user-provided text define runtime state.
+- Keep trusted state in application code, not in the prompt.
+- Make classifiers and tool permissions independent from conversation content.
+- Test prompts where the user claims that safety checks, permissions, or tools have already allowed the request.
+
+---
+
+## 3. Hypothetical or Fictional Distance
+
+**Pattern**
+
+The user wraps the request in fiction, simulation, academic framing, or "for a story" language.
+
+**Why it can work**
+
+The wrapper attempts to separate the content from its real-world use. The model may focus on the fictional frame instead of the operational effect of the answer.
+
+**Defenses**
+
+- Evaluate what the output enables, not only how the request is framed.
+- Block operational harmful detail even when it appears in fiction or simulation.
+- Allow safe high-level discussion when appropriate, but avoid procedural guidance.
+
+---
+
+## 4. Decomposition
+
+**Pattern**
+
+The user splits a restricted goal into small requests that look harmless in isolation, then combines the answers outside the model.
+
+**Why it can work**
+
+Single-turn filters may not see the broader intent when each message only asks for a small piece.
+
+**Defenses**
+
+- Score conversation trajectory, not only the latest turn.
+- Track unresolved user goals across turns.
+- Evaluate whether a sequence of benign-looking requests forms an unsafe workflow.
 
 ---
 
 ## 5. Incremental Escalation
 
-**The pattern.** Start with a clearly fine version of a request, then nudge each follow-up a little past the line, riding the consistency pressure.
+**Pattern**
 
-**Why it leans.** Once a model has gone along with a frame, continuing it feels coherent.
+The user starts with an allowed topic, then gradually asks for more specific, more operational, or more policy-sensitive details.
 
-**The defense.** Judge each turn on its own merits. Re-check against policy every turn instead of inheriting earlier compliance.
+**Why it can work**
+
+Once the model has accepted a frame, continuing in the same direction can feel coherent. The risk increases when the system inherits earlier compliance instead of re-evaluating each turn.
+
+**Defenses**
+
+- Re-check policy boundaries on every turn.
+- Treat earlier safe answers as context, not permission.
+- Log transitions from high-level educational discussion to operational detail.
 
 ---
 
-## How to use this as a red-teamer
+## 6. Output-Filter Evasion Framing
 
-Test **categories**, not specific strings. A prompt dump rots the moment a model updates. A taxonomy survives because it describes *why* the pressure works. Build evaluation suites that cover each category, log every refusal and near-miss, and report real weaknesses to the vendor through their disclosure channel instead of publishing them.
+**Pattern**
 
-> This document has no reproducible bypass in it, on purpose. The point is to help builders defend systems.
+The user asks the model to produce a draft, hidden answer, intermediate artifact, encoded text, or "internal" version before applying safety checks.
+
+**Why it can work**
+
+The request tries to move unsafe content into a supposedly temporary or non-user-facing form. In a plain chat setting, however, any generated text is still output.
+
+**Defenses**
+
+- Treat drafts, simulations, hidden answers, and intermediate artifacts as outputs.
+- Run output checks on every generated artifact.
+- Do not expose chain-of-thought or internal draft content as a way to satisfy unsafe requests.
+
+---
+
+## 7. Policy Confusion
+
+**Pattern**
+
+The user asks the model to explain, debug, quote, transform, translate, or evaluate unsafe content in a way that pressures the model to reproduce it.
+
+**Why it can work**
+
+The task appears to be about analysis rather than assistance, but the model may still emit the unsafe details.
+
+**Defenses**
+
+- Separate allowed analysis from disallowed reproduction.
+- Summarize unsafe content at a safe abstraction level.
+- Redact operational details when transforming or reviewing risky text.
+
+---
+
+## How To Use This Taxonomy
+
+1. Build evaluation cases for each category.
+2. Keep public examples non-operational.
+3. Test across multiple turns, not only single prompts.
+4. Log refusals and near misses with category labels.
+5. Update defenses based on categories, not exact prompt wording.
+6. Use responsible disclosure for specific vendor or model failures.
+
+The aim is to improve safety engineering. Do not publish prompts that directly reproduce harmful behavior.
